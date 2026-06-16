@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Water Bottle Classifier</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <h1>Water Bottle Classifier</h1>
+      <p class="subtitle">Upload an image to get <b>full / half / overflow</b> + confidence.</p>
+    </header>
+
+    <section class="card">
+      <div class="row">
+        <label class="file">
+          <input id="fileInput" type="file" accept="image/*" />
+          <span>Choose image</span>
+        </label>
+
+        <button id="predictBtn" class="btn" disabled>Predict</button>
+      </div>
+
+      <div class="grid">
+        <div class="preview">
+          <div class="preview-box" id="previewBox">
+            <span class="muted">Preview</span>
+          </div>
+          <div class="meta">
+            <div><span class="muted">File:</span> <span id="fileName">—</span></div>
+            <div><span class="muted">Status:</span> <span id="status">Waiting for an image</span></div>
+          </div>
+        </div>
+
+        <div class="result">
+          <h2>Result</h2>
+          <div class="result-main">
+            <div class="pill" id="predLabel">—</div>
+            <div class="conf">
+              <span class="muted">Confidence</span>
+              <span id="confidence">—</span>
+            </div>
+          </div>
+
+          <h3>Probabilities</h3>
+          <div id="probs" class="probs">
+            <div class="muted">—</div>
+          </div>
+
+          <details class="raw">
+            <summary>View full JSON</summary>
+            <pre id="rawJson">{}</pre>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p class="muted">
+        Calls <code>POST /predict</code> on the same origin (served by FastAPI).
+        Production metrics? <a href="/dashboard" style="color:#4f8cff;">See the monitoring dashboard →</a>
+      </p>
+    </footer>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const predictBtn = document.getElementById("predictBtn");
+    const previewBox = document.getElementById("previewBox");
+    const fileName = document.getElementById("fileName");
+    const statusEl = document.getElementById("status");
+
+    const predLabelEl = document.getElementById("predLabel");
+    const confEl = document.getElementById("confidence");
+    const probsEl = document.getElementById("probs");
+    const rawJsonEl = document.getElementById("rawJson");
+
+    let currentFile = null;
+
+    function setStatus(text, kind = "normal") {
+      statusEl.textContent = text;
+      statusEl.className = kind === "error" ? "status error" : "status";
+    }
+
+    function renderProbs(probs) {
+      probsEl.innerHTML = "";
+      if (!probs) {
+        probsEl.innerHTML = `<div class="muted">—</div>`;
+        return;
+      }
+      const entries = Object.entries(probs).sort((a,b) => b[1] - a[1]);
+      for (const [label, p] of entries) {
+        const pct = Math.round(p * 1000) / 10; // 1 decimal
+        const row = document.createElement("div");
+        row.className = "prob-row";
+        row.innerHTML = `
+          <div class="prob-label">${label}</div>
+          <div class="bar"><div class="bar-fill" style="width:${Math.min(100, pct)}%"></div></div>
+          <div class="prob-val">${pct}%</div>
+        `;
+        probsEl.appendChild(row);
+      }
+    }
+
+    function renderResult(data) {
+      // Expected shape:
+      // { pred_label: "half", confidence: 0.97, probs: {full:..., half:..., overflow:...} }
+      predLabelEl.textContent = data?.pred_label ?? "—";
+      confEl.textContent = (data?.confidence != null) ? (Math.round(data.confidence * 1000) / 10) + "%" : "—";
+      renderProbs(data?.probs);
+      rawJsonEl.textContent = JSON.stringify(data, null, 2);
+    }
+
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files?.[0];
+      currentFile = f || null;
+
+      if (!currentFile) {
+        predictBtn.disabled = true;
+        fileName.textContent = "—";
+        previewBox.innerHTML = `<span class="muted">Preview</span>`;
+        setStatus("Waiting for an image");
+        return;
+      }
+
+      fileName.textContent = currentFile.name;
+      predictBtn.disabled = false;
+      setStatus("Ready to predict");
+
+      const url = URL.createObjectURL(currentFile);
+      previewBox.innerHTML = `<img alt="preview" src="${url}" />`;
+    });
+
+    predictBtn.addEventListener("click", async () => {
+      if (!currentFile) return;
+
+      predictBtn.disabled = true;
+      setStatus("Sending to /predict ...");
+
+      try {
+        const form = new FormData();
+        form.append("file", currentFile);
+
+        const res = await fetch("/predict", {
+          method: "POST",
+          body: form
+        });
+
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(`HTTP ${res.status}: ${txt}`);
+        }
+
+        const data = await res.json();
+        renderResult(data);
+        setStatus("OK ✅");
+      } catch (err) {
+        console.error(err);
+        setStatus("Prediction failed (check console)", "error");
+      } finally {
+        predictBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

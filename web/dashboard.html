@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Monitoring · Water Bottle Classifier</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <style>
+    .kpis{ display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:14px; }
+    @media (max-width:820px){ .kpis{ grid-template-columns: repeat(2,1fr); } }
+    .kpi{ background: rgba(0,0,0,0.22); border:1px solid var(--border); border-radius:14px; padding:14px; }
+    .kpi .k-val{ font-size:24px; font-weight:800; }
+    .kpi .k-lbl{ color:var(--muted); font-size:13px; margin-top:4px; }
+    .section-title{ margin:18px 0 10px; font-size:15px; color:var(--muted); }
+    .drift-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width:820px){ .drift-grid{ grid-template-columns:1fr; } }
+    .drift{ border-radius:14px; padding:14px; border:1px solid var(--border); background:rgba(0,0,0,0.22); }
+    .badge{ display:inline-block; padding:4px 10px; border-radius:999px; font-weight:800; font-size:12px; }
+    .b-ok{ background:rgba(45,212,191,0.15); border:1px solid rgba(45,212,191,0.4); color:var(--accent2); }
+    .b-warn{ background:rgba(255,193,7,0.13); border:1px solid rgba(255,193,7,0.4); color:#ffce56; }
+    .b-bad{ background:rgba(255,79,109,0.13); border:1px solid rgba(255,79,109,0.4); color:var(--danger); }
+    table{ width:100%; border-collapse:collapse; font-size:14px; }
+    th,td{ text-align:left; padding:8px 6px; border-bottom:1px solid rgba(255,255,255,0.07); }
+    th{ color:var(--muted); font-weight:600; }
+    .hist{ display:grid; grid-template-columns:repeat(10,1fr); gap:4px; align-items:end; height:120px; }
+    .hist .hbar{ background:linear-gradient(180deg,var(--accent),var(--accent2)); border-radius:4px 4px 0 0; min-height:2px; }
+    .hist-x{ display:grid; grid-template-columns:repeat(10,1fr); gap:4px; font-size:10px; color:var(--muted); margin-top:4px; }
+    .toolbar{ display:flex; gap:10px; align-items:center; }
+    .muted-sm{ color:var(--muted); font-size:13px; }
+    a.link{ color:var(--accent); text-decoration:none; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="header row">
+      <div>
+        <h1>Model monitoring</h1>
+        <p class="subtitle">Drift, volume and production performance · <a class="link" href="/">← back to classifier</a></p>
+      </div>
+      <div class="toolbar">
+        <span id="activeModel" class="muted-sm">—</span>
+        <button id="refreshBtn" class="btn">Refresh</button>
+      </div>
+    </header>
+
+    <div id="empty" class="card" style="display:none;">
+      <p class="muted">No predictions recorded yet. Upload images in <a class="link" href="/">the classifier</a> to populate monitoring.</p>
+    </div>
+
+    <section id="content" style="display:none;">
+      <div class="kpis">
+        <div class="kpi"><div id="kTotal" class="k-val">—</div><div class="k-lbl">Total predictions</div></div>
+        <div class="kpi"><div id="kConf" class="k-val">—</div><div class="k-lbl">Mean confidence</div></div>
+        <div class="kpi"><div id="kLow" class="k-val">—</div><div class="k-lbl">Low-confidence rate</div></div>
+        <div class="kpi"><div id="kAcc" class="k-val">—</div><div class="k-lbl">Accuracy (with labels)</div></div>
+      </div>
+
+      <h2 class="section-title">Drift detection (PSI vs. baseline)</h2>
+      <div class="drift-grid">
+        <div class="drift">
+          <div class="row" style="margin-bottom:8px;">
+            <b>Class distribution</b><span id="driftClassBadge" class="badge b-ok">—</span>
+          </div>
+          <div class="muted-sm">PSI = <span id="driftClassVal">—</span></div>
+          <div id="driftClassBars" class="probs" style="margin-top:10px;"></div>
+        </div>
+        <div class="drift">
+          <div class="row" style="margin-bottom:8px;">
+            <b>Confidence</b><span id="driftConfBadge" class="badge b-ok">—</span>
+          </div>
+          <div class="muted-sm">PSI = <span id="driftConfVal">—</span></div>
+          <div id="driftConfNote" class="muted-sm" style="margin-top:10px;"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h2 class="section-title" style="margin-top:0;">Predicted-class distribution</h2>
+        <div id="classDist" class="probs"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h2 class="section-title" style="margin-top:0;">Confidence histogram</h2>
+        <div id="confHist" class="hist"></div>
+        <div class="hist-x" id="confHistX"></div>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h2 class="section-title" style="margin-top:0;">Per-class performance (where labels exist)</h2>
+        <table id="perfTable"><thead><tr><th>Class</th><th>N</th><th>Correct</th><th>Recall</th></tr></thead><tbody></tbody></table>
+        <p id="perfEmpty" class="muted-sm" style="display:none;">No labels stored yet (POST /label).</p>
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <h2 class="section-title" style="margin-top:0;">Daily volume</h2>
+        <table id="volTable"><thead><tr><th>Date</th><th>Predictions</th><th>Mean confidence</th></tr></thead><tbody></tbody></table>
+      </div>
+
+      <details class="raw" style="margin-top:14px;">
+        <summary>View full JSON (/monitoring)</summary>
+        <pre id="rawJson">{}</pre>
+      </details>
+    </section>
+
+    <div id="error" class="card" style="display:none; border-color:var(--danger);">
+      <p class="status error" id="errorMsg"></p>
+    </div>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const pct = (x) => (x == null ? "—" : (Math.round(x * 1000) / 10) + "%");
+
+    function badgeClass(sev){
+      if (sev === "no relevant drift") return "b-ok";
+      if (sev === "moderate drift") return "b-warn";
+      return "b-bad";
+    }
+
+    function bar(label, value){
+      const p = Math.round((value || 0) * 1000) / 10;
+      const row = document.createElement("div");
+      row.className = "prob-row";
+      row.innerHTML = `
+        <div class="prob-label">${label}</div>
+        <div class="bar"><div class="bar-fill" style="width:${Math.min(100, p)}%"></div></div>
+        <div class="prob-val">${p}%</div>`;
+      return row;
+    }
+
+    function render(data){
+      $("rawJson").textContent = JSON.stringify(data, null, 2);
+      $("activeModel").textContent = "active model: " + (data.active_model_version ?? "—");
+
+      const total = data.summary?.total_predictions ?? 0;
+      if (!total){ $("empty").style.display = "block"; $("content").style.display = "none"; return; }
+      $("empty").style.display = "none"; $("content").style.display = "block";
+
+      // KPIs
+      $("kTotal").textContent = total;
+      $("kConf").textContent = pct(data.confidence?.mean);
+      $("kLow").textContent = pct(data.confidence?.low_confidence_rate);
+      $("kAcc").textContent = data.performance?.accuracy != null
+        ? pct(data.performance.accuracy) + ` (n=${data.performance.n_labeled})` : "no labels";
+
+      // Drift - classes
+      const dc = data.drift?.class_distribution_psi;
+      if (dc){
+        $("driftClassVal").textContent = dc.value;
+        const b = $("driftClassBadge"); b.textContent = dc.severity; b.className = "badge " + badgeClass(dc.severity);
+        const box = $("driftClassBars"); box.innerHTML = "";
+        dc.labels.forEach((lbl, i) => {
+          box.appendChild(bar(lbl + " (ref)", dc.reference[i]));
+          box.appendChild(bar(lbl + " (live)", dc.live[i]));
+        });
+      } else {
+        $("driftClassBadge").textContent = "no baseline";
+        $("driftClassBadge").className = "badge b-warn";
+      }
+
+      // Drift - confidence
+      const cf = data.drift?.confidence_psi;
+      if (cf){
+        $("driftConfVal").textContent = cf.value;
+        const b = $("driftConfBadge"); b.textContent = cf.severity; b.className = "badge " + badgeClass(cf.severity);
+        $("driftConfNote").textContent = "Compares the current confidence histogram against the training baseline.";
+      } else {
+        $("driftConfBadge").textContent = "no baseline";
+        $("driftConfBadge").className = "badge b-warn";
+      }
+
+      // Predicted-class distribution (live)
+      const cd = $("classDist"); cd.innerHTML = "";
+      const props = data.class_distribution?.proportions || {};
+      Object.keys(props).sort().forEach(k => cd.appendChild(bar(k, props[k])));
+
+      // Confidence histogram
+      const hist = data.confidence?.histogram || [];
+      const maxH = Math.max(0.0001, ...hist);
+      const hbox = $("confHist"); hbox.innerHTML = "";
+      const xbox = $("confHistX"); xbox.innerHTML = "";
+      hist.forEach((h, i) => {
+        const d = document.createElement("div");
+        d.className = "hbar";
+        d.style.height = Math.round((h / maxH) * 100) + "%";
+        d.title = `${(i*10)}–${(i*10+10)}%: ${pct(h)}`;
+        hbox.appendChild(d);
+        const x = document.createElement("div");
+        x.textContent = (i * 10);
+        xbox.appendChild(x);
+      });
+
+      // Per-class performance
+      const pt = $("perfTable").querySelector("tbody"); pt.innerHTML = "";
+      const per = data.performance?.per_class || [];
+      if (per.length){
+        $("perfTable").style.display = "table"; $("perfEmpty").style.display = "none";
+        per.forEach(r => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td>${r.label}</td><td>${r.n}</td><td>${r.correct}</td><td>${pct(r.recall)}</td>`;
+          pt.appendChild(tr);
+        });
+      } else {
+        $("perfTable").style.display = "none"; $("perfEmpty").style.display = "block";
+      }
+
+      // Daily volume
+      const vt = $("volTable").querySelector("tbody"); vt.innerHTML = "";
+      (data.volume_daily || []).forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${r.date}</td><td>${r.count}</td><td>${pct(r.avg_confidence)}</td>`;
+        vt.appendChild(tr);
+      });
+    }
+
+    async function load(){
+      $("error").style.display = "none";
+      try {
+        const res = await fetch("/monitoring");
+        if (!res.ok) throw new Error("HTTP " + res.status + ": " + await res.text());
+        render(await res.json());
+      } catch (err){
+        $("error").style.display = "block";
+        $("errorMsg").textContent = "Failed to load /monitoring: " + err.message;
+      }
+    }
+
+    $("refreshBtn").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>

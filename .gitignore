@@ -1,0 +1,39 @@
+# ---- Old nested copy/repository (do NOT publish) ----
+/prueba3/
+
+# ---- Secrets and environment ----
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+
+# ---- Jupyter ----
+.ipynb_checkpoints/
+
+# ---- Full dataset: not versioned (size). The repo ships samples/ ----
+# (API runtime uploads, full full/half/overflow sets, etc.)
+/data/
+
+# ---- Old artifact (the API uses waterbottle_resnet18_v1.pt) ----
+/artifacts/model_resnet18_v1.pt
+
+# ---- System / IDE ----
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.log

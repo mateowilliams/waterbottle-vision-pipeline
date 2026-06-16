@@ -1,0 +1,14 @@
+# Normalize line endings to LF in the repo and on checkout.
+# Prevents entrypoint.sh from being checked out as CRLF on Windows and
+# breaking the Linux container (sh: "\r": command not found).
+* text=auto eol=lf
+
+# Shell scripts: always LF.
+*.sh text eol=lf
+
+# Binaries: leave untouched.
+*.pt   binary
+*.jpg  binary
+*.jpeg binary
+*.png  binary
+*.webp binary

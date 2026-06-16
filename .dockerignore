@@ -1,0 +1,21 @@
+# Repos / version control
+.git/
+prueba3/
+
+# Heavy data: mounted as a volume, not baked into the image
+data/
+
+# Old artifact (not used by the API)
+artifacts/model_resnet18_v1.pt
+
+# Notebooks and EDA
+notebooks/
+
+# Caches / environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+.env
+*.log
