@@ -15,6 +15,18 @@ retraining**, all containerized with Docker.
 
 ---
 
+## Demo
+
+**Classifier** — upload an image and get the predicted fill level + confidence:
+
+![Classifier UI](docs/img/classifier.png)
+
+**Monitoring dashboard** — prediction volume, class distribution, confidence, real accuracy (where labels exist) and PSI drift vs. the training baseline:
+
+![Monitoring dashboard](docs/img/dashboard.png)
+
+---
+
 ## End-to-end flow
 
 ```
