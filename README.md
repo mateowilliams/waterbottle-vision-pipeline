@@ -17,13 +17,13 @@ retraining**, all containerized with Docker.
 
 ## Demo
 
-**Classifier** — upload an image and get the predicted fill level + confidence:
+The model classifies a bottle's fill level into three classes:
 
-![Classifier UI](docs/img/classifier.png)
+![Fill-level classes: full, half, overflow](docs/img/classes.png)
 
-**Monitoring dashboard** — prediction volume, class distribution, confidence, real accuracy (where labels exist) and PSI drift vs. the training baseline:
+Upload an image in the web UI to get the predicted class, its confidence and the per-class probabilities:
 
-![Monitoring dashboard](docs/img/dashboard.png)
+![Classifier UI showing a prediction](docs/img/classifier.png)
 
 ---
 
